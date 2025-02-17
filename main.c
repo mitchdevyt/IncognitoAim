@@ -16,7 +16,41 @@
 #include "include/raylib.h"
 #include "include/raymath.h"
 
-//
+
+typedef enum{
+    MAIN, REACTION, TRACK
+}AppState;
+
+typedef enum{
+    PLAY,PAUSE,END
+}GameState;
+typedef struct{
+    Vector2 pos;
+    int fontScale;
+    int spaccing;
+    Color fontColor;
+}MainMenuData;
+typedef struct {
+    AppState appState;
+    GameState gameState;
+    int score;
+}Game;
+
+Game game;
+MainMenuData mainMenuData;
+
+int screenWidth = 1280;
+int screenHeight = 800;
+
+void UpdateAndDrawApp();
+void UpdateGame();
+void UpdateMainMenu();
+void DrawMainMenu();
+void UpdateReactionGame();
+void DrawReactionGame();
+void UpdateTrackGame();
+void DrawTrackGame();
+bool CheckPointInTextBox(Vector2 mousePos, Vector2 textPos, int width, int height);
 //gcc main.c  -L lib/ -framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL lib/libraylib.a -o Incognitoaim
 //------------------------------------------------------------------------------------
 // Program main entry point
@@ -26,11 +60,12 @@ int main(void)
     // Initialization
     //--------------------------------------------------------------------------------------
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);// |  FLAG_WINDOW_UNDECORATED);
-    const int screenWidth = 1280;
-    const int screenHeight = 800;
+    
 
     InitWindow(screenWidth, screenHeight, "IncognitoAim");
 
+    game = (Game){ MAIN, END, 0};
+    mainMenuData = (MainMenuData){ {0,0}, 0, 0,BLACK};
     float dt = 0.0;
     float fps = 0.0;
 
@@ -56,13 +91,15 @@ int main(void)
         dt = GetFrameTime();
         fps = GetFPS();
         ballPosition = GetMousePosition();
-        
+
+        screenWidth = GetScreenWidth();
+        screenHeight = GetScreenHeight();
         //toggle fullscreen mode
        if(IsKeyPressed(KEY_P)){
          ToggleFullscreen();         
        }
-       bg_dest_rect.width = GetScreenWidth();
-       bg_dest_rect.height = GetScreenHeight();
+       bg_dest_rect.width = screenWidth;
+       bg_dest_rect.height = screenHeight;
 
         //check if file is dropped and load it to background
         if (IsFileDropped()) {
@@ -87,13 +124,14 @@ int main(void)
         BeginDrawing();
 
             ClearBackground(DARKGRAY);
-
+            UpdateAndDrawApp();
              if (image_loaded) {
                 DrawTexturePro(bg_texture, bg_source_rect,bg_dest_rect,bg_pos,0.0f, WHITE);  // Draw image at (200,150)
             } else {
                 DrawText("Drop an image file here", 300, 280, 20, BLACK);
             }
-
+            UpdateAndDrawApp();
+            
             DrawRectangle(0,0,250,54,BLACK);
             DrawText(TextFormat("Delta Time: %02f", dt), 4, 4, 25, RED);
             DrawText(TextFormat("fps: %02f", fps), 4, 25, 25, RED);
@@ -109,4 +147,101 @@ int main(void)
     //--------------------------------------------------------------------------------------
 
     return 0;
+}
+
+void UpdateAndDrawApp()
+{
+    switch (game.appState)
+    {
+    case MAIN:
+        UpdateMainMenu();
+        DrawMainMenu();
+        break;
+    case REACTION:
+        UpdateReactionGame();
+        DrawReactionGame();
+        break;
+    case TRACK:
+        UpdateTrackGame();
+        DrawTrackGame();
+        break;
+    
+    default:
+        break;
+    }
+}
+
+void UpdateGame()
+{
+    switch (game.gameState)
+    {
+    case PLAY:
+        break;
+    case PAUSE:
+        break;
+    case END:
+        break;
+    
+    default:
+        break;
+    }
+}
+bool boxePressed = false;
+void UpdateMainMenu()
+{
+    mainMenuData.pos.x = (screenWidth / 2) - 250;
+    mainMenuData.pos.y = (screenHeight / 2)-50;
+    mainMenuData.fontScale = 50;
+    mainMenuData.spaccing = 20;
+    boxePressed = false;
+    //if mouse1 down
+    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
+    {
+        Vector2 MousePos = GetMousePosition();
+        int textWidth = MeasureText("Reaction Practice",mainMenuData.fontScale);
+        if(CheckPointInTextBox(MousePos,mainMenuData.pos,textWidth,mainMenuData.fontScale))
+        {//check if mouse pressed int Reaction box
+            boxePressed = true;
+        }
+        Vector2 nextPos = {mainMenuData.pos.x,mainMenuData.pos.y + mainMenuData.fontScale + mainMenuData.spaccing};
+        if(CheckPointInTextBox(MousePos,nextPos,textWidth,mainMenuData.fontScale))
+        {//check if pouse pressed int traking mox
+            boxePressed = true;
+        }
+
+    }
+    //check all button hitboxes for collision
+}
+
+void DrawMainMenu()
+{
+    if(!boxePressed){
+        DrawText("Reaction Practice",mainMenuData.pos.x,mainMenuData.pos.y,mainMenuData.fontScale,mainMenuData.fontColor);
+        DrawText("Tracking Practice",mainMenuData.pos.y,mainMenuData.pos.y + mainMenuData.fontScale + mainMenuData.spaccing,mainMenuData.fontScale,mainMenuData.fontColor);
+    }
+    
+
+}
+void UpdateReactionGame()
+{
+
+}
+void DrawReactionGame()
+{
+
+}
+void UpdateTrackGame()
+{
+
+}
+void DrawTrackGame()
+{
+
+}
+
+bool CheckPointInTextBox(Vector2 mousePos, Vector2 textPos, int width, int height)
+{
+    return mousePos.x >textPos.x && mousePos.x < textPos.x + width &&
+    mousePos.y> textPos.y && mousePos.y <textPos.y + height;
+
 }
