@@ -15,6 +15,8 @@
 
 #include "include/raylib.h"
 #include "include/raymath.h"
+#define RAYGUI_IMPLEMENTATION
+#include "include/raygui.h"
 
 
 typedef enum{
@@ -28,6 +30,8 @@ typedef struct{
     Vector2 pos;
     int fontScale;
     int spaccing;
+    Rectangle reactionRect;
+    Rectangle trackingRect;
     Color fontColor;
 }MainMenuData;
 typedef struct {
@@ -65,7 +69,7 @@ int main(void)
     InitWindow(screenWidth, screenHeight, "IncognitoAim");
 
     game = (Game){ MAIN, END, 0};
-    mainMenuData = (MainMenuData){ {0,0}, 0, 0,BLACK};
+    mainMenuData = (MainMenuData){ {0,0}};
     float dt = 0.0;
     float fps = 0.0;
 
@@ -128,14 +132,14 @@ int main(void)
              if (image_loaded) {
                 DrawTexturePro(bg_texture, bg_source_rect,bg_dest_rect,bg_pos,0.0f, WHITE);  // Draw image at (200,150)
             } else {
-                DrawText("Drop an image file here", 300, 280, 20, BLACK);
+                DrawText("Drop an image file here", screenWidth * .4, screenHeight  *.2, 20, BLACK);
             }
             UpdateAndDrawApp();
             
             DrawRectangle(0,0,250,54,BLACK);
             DrawText(TextFormat("Delta Time: %02f", dt), 4, 4, 25, RED);
             DrawText(TextFormat("fps: %02f", fps), 4, 25, 25, RED);
-            DrawText(TextFormat("w: %02f, h:%02f", bg_dest_rect.width,bg_dest_rect.height), 4, 50, 25, RED);
+            
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
@@ -186,41 +190,42 @@ void UpdateGame()
         break;
     }
 }
-bool boxePressed = false;
 void UpdateMainMenu()
 {
-    mainMenuData.pos.x = (screenWidth / 2) - 250;
-    mainMenuData.pos.y = (screenHeight / 2)-50;
-    mainMenuData.fontScale = 50;
-    mainMenuData.spaccing = 20;
-    boxePressed = false;
-    //if mouse1 down
-    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
-    {
-        Vector2 MousePos = GetMousePosition();
-        int textWidth = MeasureText("Reaction Practice",mainMenuData.fontScale);
-        if(CheckPointInTextBox(MousePos,mainMenuData.pos,textWidth,mainMenuData.fontScale))
-        {//check if mouse pressed int Reaction box
-            boxePressed = true;
-        }
-        Vector2 nextPos = {mainMenuData.pos.x,mainMenuData.pos.y + mainMenuData.fontScale + mainMenuData.spaccing};
-        if(CheckPointInTextBox(MousePos,nextPos,textWidth,mainMenuData.fontScale))
-        {//check if pouse pressed int traking mox
-            boxePressed = true;
-        }
+    mainMenuData.pos.x = screenWidth * .35;
+    mainMenuData.pos.y = screenHeight * .35;
+    mainMenuData.fontScale = screenHeight * .05 ;
+    mainMenuData.spaccing = mainMenuData.fontScale + (mainMenuData.fontScale * .5);
+    mainMenuData.fontColor = BLACK;
+    
+    mainMenuData.reactionRect.x = mainMenuData.pos.x;
+    mainMenuData.reactionRect.y = mainMenuData.pos.y;
+    mainMenuData.reactionRect.width =  MeasureText("Reaction Practice", mainMenuData.fontScale);
+    mainMenuData.reactionRect.height = mainMenuData.fontScale;
 
-    }
-    //check all button hitboxes for collision
+    mainMenuData.trackingRect.x = mainMenuData.pos.x;
+    mainMenuData.trackingRect.y = mainMenuData.pos.y + mainMenuData.spaccing;
+    mainMenuData.trackingRect.width = MeasureText("Tracking Practice", mainMenuData.fontScale);
+    mainMenuData.trackingRect.height = mainMenuData.fontScale;
 }
-
+bool checkbutton = false;
 void DrawMainMenu()
 {
-    if(!boxePressed){
-        DrawText("Reaction Practice",mainMenuData.pos.x,mainMenuData.pos.y,mainMenuData.fontScale,mainMenuData.fontColor);
-        DrawText("Tracking Practice",mainMenuData.pos.y,mainMenuData.pos.y + mainMenuData.fontScale + mainMenuData.spaccing,mainMenuData.fontScale,mainMenuData.fontColor);
+    
+    DrawRectangleRec(mainMenuData.reactionRect, RED);
+    DrawRectangleRec(mainMenuData.trackingRect, BLUE);
+    DrawText("Reaction Practice",mainMenuData.pos.x,mainMenuData.pos.y,mainMenuData.fontScale,mainMenuData.fontColor);
+    DrawText("Tracking Practice",mainMenuData.trackingRect.x,mainMenuData.trackingRect.y,mainMenuData.fontScale,mainMenuData.fontColor);
+    
+    if (GuiLabelButton(mainMenuData.reactionRect, ""))
+    {
+        checkbutton = true;
+    }
+    if (GuiLabelButton(mainMenuData.trackingRect, ""))
+    {
+        checkbutton = true;
     }
     
-
 }
 void UpdateReactionGame()
 {
