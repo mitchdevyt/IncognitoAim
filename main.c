@@ -20,7 +20,7 @@
 
 #define NUM_BALL_ROWS  5
 #define NUM_BALL_COLS  5
-#define NUM_REACTION_BALLS NUM_BALL_ROWS*NUM_BALL_COLS
+#define NUM_REACTION_BALLS 25
 #define NUM_BALLS_ON_SCREEN 3
 
 #pragma region Structs and enums
@@ -29,7 +29,7 @@ typedef enum{
 }AppState;
 
 typedef enum{
-    PLAY,PAUSE,END
+    START,PLAY,HIDE,END
 }GameState;
 typedef struct{
     Vector2 pos;
@@ -57,10 +57,26 @@ typedef struct{
     float ballSize;
     int ballOffset;
     Vector3 ballTopLeftPosition;
-    int score;
     int activeBallIndexs[3];
     GameState gameState;
+    Color ballColor;
+    int score;
+    int numClicks;
+    float accuracy;
+    float timer;
+    GameState previousState;
+    bool hideGame;
 }ReactionGame;
+typedef struct{
+    int fontScale;
+    int spaccing;
+    Vector2 pos;
+    float mouseSensitivity;
+    Vector2 sliderSize;
+    Rectangle ballSizeButton;
+    float ballColorRectSize;
+    int ballColorIndex;
+}ReactionGameStartMenu;
 #pragma endregion
 #pragma region Forward Functions
 void UpdateAndDrawApp();
@@ -69,13 +85,21 @@ void UpdateMainMenu();
 void DrawMainMenu();
 void ResetReactionGame();
 void UpdateReactionGame();
+void UpdateReactionGameState();
 void DrawReactionGame();
+void DrawReactionStartMenu();
+void UpdateReactionStartMenu();
+void RenderReactinGameState();
+void ReactionGameCheckForHide();
+void DrawReactionGameEnd();
+void UpdateReactionGameEnd();
 bool IsInActiveArray(int value);
 int GetRandomBall();
 void PickRandomStartBalls();
 void PickRandomStartBalls();
 void UpdateTrackGame();
 void DrawTrackGame();
+
 #pragma endregion
 #pragma region Globals
 Game game;
@@ -83,9 +107,13 @@ MainMenuData mainMenuData;
 CameraSettings camSettings;
 Camera camera;
 ReactionGame reactionGame;
-
+ReactionGameStartMenu reactionStart;
 int screenWidth = 1280;
 int screenHeight = 800;
+float dt = 0.0;
+float fps = 0.0;
+const int numBallColors = 9;
+struct Color ballColors[] = {RED,GREEN,BLUE,PINK,PURPLE,ORANGE,YELLOW,BLACK,WHITE};
 #pragma endregion
 #pragma region Main
 //gcc main.c  -L lib/ -framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL lib/libraylib.a -o Incognitoaim
@@ -99,19 +127,21 @@ int main(void)
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);// |  FLAG_WINDOW_UNDECORATED);
     
     InitWindow(screenWidth, screenHeight, "IncognitoAim");
-    ResetReactionGame();
 
-    game = (Game){ MAIN, END, 0};
+    game = (Game){ MAIN, START, 0};
     mainMenuData = (MainMenuData){ {0,0}};
-
+    reactionStart = (ReactionGameStartMenu){};
+    reactionStart.mouseSensitivity = 2.;
+    reactionGame.ballSize = 1;
+    reactionGame.hideGame = false;
     camSettings.sensitivity = 0.001f;
+    //camSettings.sensitivity = 0.001f;
     camSettings.pitch = 0.0f;  // Up/Down angle
     camSettings.yaw = 0.0f;    // Left/Right angle
     camSettings.pitchLimit = PI / 3.0f; // Limit pitch (Up/Down) to ~60 degrees
     camSettings.yawLimit = PI / 3.0f; // Limit pitch (Up/Down) to ~60 degrees
 
-    float dt = 0.0;
-    float fps = 0.0;
+
 
     camera = (Camera){ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 100.0f }, { 0.0f, 1.0f, 0.0f }, 50.0f, 0 };
 
@@ -168,14 +198,13 @@ int main(void)
              if (image_loaded) {
                 DrawTexturePro(bg_texture, bg_source_rect,bg_dest_rect,bg_pos,0.0f, WHITE);  // Draw image at (200,150)
             } else {
-                DrawText("Drop an image file here", screenWidth * .4, screenHeight  *.2, 20, BLACK);
+                DrawText("Drop an image file here", screenWidth * .4, screenHeight  *.05, 20, BLACK);
             }
             UpdateAndDrawApp();
 
-            DrawRectangle(0,0,250,54,BLACK);
-            DrawText(TextFormat("Delta Time: %02f", dt), 4, 4, 25, RED);
-            DrawText(TextFormat("fps: %02f", fps), 4, 25, 25, RED);
-            DrawText(TextFormat("+"),screenWidth/2,screenHeight/2,20,BLACK);
+            // DrawRectangle(0,0,250,54,BLACK);
+            // DrawText(TextFormat("Delta Time: %02f", dt), 4, 4, 25, RED);
+            // DrawText(TextFormat("fps: %02f", fps), 4, 25, 25, RED);
         EndDrawing();
         //----------------------------------------------------------------------------------
     }
@@ -199,8 +228,7 @@ void UpdateAndDrawApp()
         DrawMainMenu();
         break;
     case REACTION:
-        UpdateReactionGame();
-        DrawReactionGame();
+        UpdateReactionGameState();
         break;
     case TRACK:
         UpdateTrackGame();
@@ -212,21 +240,6 @@ void UpdateAndDrawApp()
     }
 }
 
-void UpdateGame()
-{
-    switch (game.gameState)
-    {
-    case PLAY:
-        break;
-    case PAUSE:
-        break;
-    case END:
-        break;
-    
-    default:
-        break;
-    }
-}
 #pragma endregion
 #pragma region MainMenu
 void UpdateMainMenu()
@@ -250,34 +263,168 @@ void UpdateMainMenu()
 void DrawMainMenu()
 {
     
-    DrawRectangleRec(mainMenuData.reactionRect, RED);
-    DrawRectangleRec(mainMenuData.trackingRect, BLUE);
+    //DrawRectangleRec(mainMenuData.reactionRect, RED);
+    //DrawRectangleRec(mainMenuData.trackingRect, BLUE);
     DrawText("Reaction Practice",mainMenuData.pos.x,mainMenuData.pos.y,mainMenuData.fontScale,mainMenuData.fontColor);
-    DrawText("Tracking Practice",mainMenuData.trackingRect.x,mainMenuData.trackingRect.y,mainMenuData.fontScale,mainMenuData.fontColor);
+    //DrawText("Tracking Practice",mainMenuData.trackingRect.x,mainMenuData.trackingRect.y,mainMenuData.fontScale,mainMenuData.fontColor);
     
     if (GuiLabelButton(mainMenuData.reactionRect, ""))
     {
         game.appState = REACTION;
-        DisableCursor();
     }
-    if (GuiLabelButton(mainMenuData.trackingRect, ""))
-    {
+    // if (GuiLabelButton(mainMenuData.trackingRect, ""))
+    // {
 
-    }
+    // }
     
 }
 #pragma endregion
 #pragma region  Reaction Game
+void UpdateReactionGameState()
+{
+    switch (reactionGame.gameState)
+    {
+    case START:
+        UpdateReactionStartMenu();
+        DrawReactionStartMenu();
+        break;
+    case PLAY:
+        UpdateReactionGame();
+        DrawReactionGame();
+        break;
+    case HIDE:
+        break;
+    case END:
+    UpdateReactionGameEnd();
+    DrawReactionGameEnd();
+        break;
+    
+    default:
+        break;
+    }
+    ReactionGameCheckForHide();
+}
+void ReactionGameCheckForHide()
+{
+    if(IsMouseButtonPressed(MOUSE_BUTTON_RIGHT))
+    {
+        if(reactionGame.hideGame)
+        {
+            reactionGame.hideGame = false;
+            reactionGame.gameState = reactionGame.previousState;
+            if(reactionGame.gameState == PLAY)
+                DisableCursor();
+        }
+        else
+        {
+            reactionGame.hideGame = true;
+            reactionGame.previousState = reactionGame.gameState;
+            reactionGame.gameState = HIDE;   
+            EnableCursor(); 
+        }
+    }
+}
+void UpdateReactionStartMenu()
+{
+    reactionStart.pos.x = screenWidth * .35;
+    reactionStart.pos.y = screenHeight * .2;
+    reactionStart.fontScale = screenHeight * .05 ;
+    reactionStart.spaccing = screenHeight * 0.1;
+    reactionStart.sliderSize = (Vector2){screenWidth * .4,screenHeight *.05};
+    reactionStart.ballSizeButton = (Rectangle){0,0,screenWidth * .1,screenHeight*.1};
+    
+}
+void DrawReactionStartMenu()
+{
+    float x = reactionStart.pos.x;
+    float y = reactionStart.pos.y;
+    int fontSize = reactionStart.fontScale;
+    Color textColor = mainMenuData.fontColor;
+    //mouse sensitivity buttons
+    DrawText(TextFormat("Mouse Sensitivity: %f",reactionStart.mouseSensitivity),x,y,fontSize,textColor);
+    y+=reactionStart.sliderSize.y;
+    GuiSliderBar((Rectangle){ x, y, reactionStart.sliderSize.x, reactionStart.sliderSize.y }, "","", &reactionStart.mouseSensitivity, 0.0f, 10.0f);
+    // balls size buttons
+    y+=reactionStart.spaccing;
+    DrawText(TextFormat("Ball Size: %d",(int)reactionGame.ballSize),x,y,fontSize,textColor);
+    float ballsizeBtnX = x;
+    float ballSizeBtnY = y + fontSize;
+    reactionStart.ballSizeButton.x = ballsizeBtnX;
+    reactionStart.ballSizeButton.y = ballSizeBtnY;
+    DrawText("-",ballsizeBtnX,ballSizeBtnY,fontSize,textColor);
+    if (GuiLabelButton(reactionStart.ballSizeButton, ""))
+    {
+        reactionGame.ballSize -= 1;
+        if(reactionGame.ballSize <=1)
+            reactionGame.ballSize = 1;
+    }
+    ballsizeBtnX+=reactionStart.ballSizeButton.width;
+    reactionStart.ballSizeButton.x = ballsizeBtnX;
+    DrawText("+",ballsizeBtnX,ballSizeBtnY,fontSize,textColor);
+    if (GuiLabelButton(reactionStart.ballSizeButton, ""))
+    {
+        reactionGame.ballSize += 1;
+        if(reactionGame.ballSize >=10)
+            reactionGame.ballSize = 10;
+    }
+    //ball color buttons
+    y+=reactionStart.spaccing +10;
+    DrawText("Ball Color: ", x,y,fontSize,textColor);
+    float rectX = x + MeasureText("Ball Color: ",fontSize);
+    DrawRectangle(rectX,y,fontSize,fontSize,ballColors[reactionStart.ballColorIndex]);
+    ballsizeBtnX = x;
+    ballSizeBtnY = y + fontSize;
+    reactionStart.ballSizeButton.x = ballsizeBtnX;
+    reactionStart.ballSizeButton.y = ballSizeBtnY;
+    DrawText("-",ballsizeBtnX,ballSizeBtnY,fontSize,textColor);
+    if (GuiLabelButton(reactionStart.ballSizeButton, ""))
+    {
+        reactionStart.ballColorIndex -= 1;
+        if(reactionStart.ballColorIndex <=0)
+            reactionStart.ballColorIndex = numBallColors-1;
+    }
+    ballsizeBtnX+=reactionStart.ballSizeButton.width;
+    reactionStart.ballSizeButton.x = ballsizeBtnX;
+    DrawText("+",ballsizeBtnX,ballSizeBtnY,fontSize,textColor);
+    if (GuiLabelButton(reactionStart.ballSizeButton, ""))
+    {
+        reactionStart.ballColorIndex += 1;
+        if(reactionStart.ballColorIndex >=numBallColors)
+            reactionStart.ballColorIndex = 0;
+    }
+    
+    // space to start text
+    y=screenHeight*.9;
+    DrawText("Press SPACE to start",x,y,reactionStart.fontScale,mainMenuData.fontColor);
+    if (IsKeyPressed(KEY_SPACE))
+    {
+        reactionGame.gameState = PLAY;
+        //TODO: move this to reaction game start of play
+        DisableCursor();
+        ResetReactionGame();
+        reactionGame.ballColor = ballColors[reactionStart.ballColorIndex];
+        reactionGame.ballSize *= 4;
+    }
+}
 void ResetReactionGame()
 {
     int x=0;
     int y=0;
     for(int i=0;i<NUM_REACTION_BALLS;++i){
         reactionGame.balls[i] = false;
-        reactionGame.ballPositions[i] = (Vector3){};
+        reactionGame.ballPositions[i] = (Vector3){0,0,700};
     }
-    reactionGame.score = 0;
+    for (int i = 0; i < NUM_BALLS_ON_SCREEN; ++i)
+    {
+        reactionGame.activeBallIndexs[i] = 0;
+    }
+    
+    reactionGame.score = 1;
+    reactionGame.numClicks = 1;
+    reactionGame.accuracy = 0;
+    reactionGame.timer = 30;
     PickRandomStartBalls();
+
 
 }
 void PickRandomStartBalls()
@@ -290,7 +437,7 @@ int GetRandomBall()
 {
     int newNum;
     do {
-        newNum = GetRandomValue(0, NUM_REACTION_BALLS);
+        newNum = GetRandomValue(0, NUM_REACTION_BALLS-1);
     } while (IsInActiveArray(newNum)); // Ensure uniqueness
     return newNum;
 }
@@ -303,11 +450,18 @@ bool IsInActiveArray(int value){
 }
 void UpdateReactionGame()
 {
+    reactionGame.timer -= dt;
+    if(reactionGame.timer<=0)
+    {
+        reactionGame.gameState=END;
+    }
     //CAMERA UPDATE
     // Get mouse movement
     Vector2 mouseDelta = GetMouseDelta();
-    camSettings.yaw -= mouseDelta.x * camSettings.sensitivity; // Rotate left/right
-    camSettings.pitch -= mouseDelta.y * camSettings.sensitivity; // Rotate up/down
+    camSettings.yaw -= mouseDelta.x * reactionStart.mouseSensitivity * camSettings.sensitivity;; // Rotate left/right
+    camSettings.pitch -= mouseDelta.y * reactionStart.mouseSensitivity * camSettings.sensitivity;; // Rotate up/down
+    //camSettings.yaw -= mouseDelta.x * camSettings.sensitivity; // Rotate left/right
+    //camSettings.pitch -= mouseDelta.y * camSettings.sensitivity; // Rotate up/down
 
     // Clamp pitch so the camera doesn't look too far up/down
     camSettings.pitch = Clamp(camSettings.pitch, -camSettings.pitchLimit, camSettings.pitchLimit);
@@ -333,8 +487,7 @@ void UpdateReactionGame()
 
     // Generate a ray from the center of the screen
     //Calculate ball positions
-    reactionGame.ballSize = 30;
-    reactionGame.ballOffset = 50;
+    reactionGame.ballOffset = 70;//reactionGame.ballSize * 5;
     float increment = (reactionGame.ballSize/2) + reactionGame.ballOffset;
     float startX = (reactionGame.ballSize/2) + reactionGame.ballOffset *2 + reactionGame.ballSize*2;
     startX = startX;
@@ -347,7 +500,9 @@ void UpdateReactionGame()
     for(int i =0; i <NUM_BALL_COLS;++i){
         float x = startX;
         for(int j =0;j<NUM_BALL_ROWS;++j){
-            reactionGame.ballPositions[counter] = (Vector3){x,y,700};
+            reactionGame.ballPositions[counter].x = x;
+            reactionGame.ballPositions[counter].y = y;
+            reactionGame.ballPositions[counter].z = 700;
             ++counter;
             x -= increment;
         }
@@ -355,28 +510,56 @@ void UpdateReactionGame()
     }
     Ray ray = GetMouseRay(screenCenter, camera);
     RayCollision col;
-    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+    if(IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        reactionGame.numClicks++;
         for(int i =0; i <NUM_BALLS_ON_SCREEN;++i){
-            col = GetRayCollisionSphere(ray, reactionGame.ballPositions[reactionGame.activeBallIndexs[i]],reactionGame.ballSize);
+            col = GetRayCollisionSphere(ray, reactionGame.ballPositions[reactionGame.activeBallIndexs[i]],reactionGame.ballSize+5);
             if(col.hit)
             {
                 //TODO: update scores when ball hit
                 reactionGame.activeBallIndexs[i] = GetRandomBall();
+                reactionGame.score++;
             }
         }
+        reactionGame.accuracy = (float)reactionGame.score / (float)reactionGame.numClicks;
     }
 }
 void DrawReactionGame()
 {
     BeginMode3D(camera);
     for(int i =0;i<NUM_BALLS_ON_SCREEN;++i){
-        DrawSphere(reactionGame.ballPositions[reactionGame.activeBallIndexs[i]],reactionGame.ballSize, GREEN);
+        DrawSphere(reactionGame.ballPositions[reactionGame.activeBallIndexs[i]],reactionGame.ballSize, reactionGame.ballColor);
     }
     Vector3 pos = {0,0,100};
     Vector3 size = {200,100,300};
     DrawCubeWiresV(pos,size,BLACK);
     EndMode3D();
+    float x = screenWidth * .2;
+    float y = 10;
+    DrawText(TextFormat("Score: %d",reactionGame.score),x,y,20,BLACK);
+    x = x + 110;
+    DrawText(TextFormat("Accuracy: %f",reactionGame.accuracy),x,y,20,BLACK);
+    
+    x = x + 210;
+    DrawText(TextFormat("Time: %d",(int)reactionGame.timer),x,y,20,BLACK);
+    
+    //crosshair
+    DrawText(TextFormat("+"),screenWidth/2,screenHeight/2-10,20,BLACK);
 }
+void UpdateReactionGameEnd()
+{
+    if(IsKeyPressed(KEY_SPACE))
+    {
+        reactionGame.gameState = START;
+    }
+}
+void DrawReactionGameEnd()
+{
+    //score
+    //accuracy
+    //numhits
+}
+
 #pragma endregion
 #pragma region Tracking game
 void UpdateTrackGame()

@@ -26,9 +26,9 @@
 *.so
 *.so.*
 *.dylib
-
 # Executables
 *.exe
+*.exec
 *.out
 *.app
 *.i*86
@@ -49,3 +49,4 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+Incognitoaim
