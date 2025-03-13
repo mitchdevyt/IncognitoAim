@@ -18,6 +18,10 @@
 #define RAYGUI_IMPLEMENTATION
 #include "include/raygui.h"
 
+#if defined(PLATFORM_WEB)
+    #include <emscripten/emscripten.h>
+#endif
+
 #define NUM_BALL_ROWS  5
 #define NUM_BALL_COLS  5
 #define NUM_REACTION_BALLS 25
@@ -77,8 +81,16 @@ typedef struct{
     float ballColorRectSize;
     int ballColorIndex;
 }ReactionGameStartMenu;
+typedef struct{
+    Texture2D bg_texture;
+    Rectangle bg_source_rect;
+    Rectangle bg_dest_rect;
+    Vector2 bg_pos;
+    bool image_loaded;
+}BackgroundImage;
 #pragma endregion
 #pragma region Forward Functions
+void UpdateGame();
 void UpdateAndDrawApp();
 void UpdateGame();
 void UpdateMainMenu();
@@ -108,6 +120,8 @@ CameraSettings camSettings;
 Camera camera;
 ReactionGame reactionGame;
 ReactionGameStartMenu reactionStart;
+BackgroundImage bgImage;
+
 int screenWidth = 1280;
 int screenHeight = 800;
 float dt = 0.0;
@@ -128,7 +142,7 @@ int main(void)
     
     InitWindow(screenWidth, screenHeight, "IncognitoAim");
 
-    game = (Game){ MAIN, START, 0};
+    game = (Game){ REACTION, START, 0};
     mainMenuData = (MainMenuData){ {0,0}};
     reactionStart = (ReactionGameStartMenu){};
     reactionStart.mouseSensitivity = 2.;
@@ -144,78 +158,86 @@ int main(void)
 
 
     camera = (Camera){ { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 100.0f }, { 0.0f, 1.0f, 0.0f }, 50.0f, 0 };
+    
+    bgImage.bg_source_rect = (Rectangle){0};
+    bgImage.bg_dest_rect = (Rectangle){0.0f,0.0f,screenWidth,screenHeight};
+    bgImage.bg_pos = (Vector2){0.0f,0.0f};
+    bgImage.image_loaded = false;
 
-    Texture2D bg_texture;
-    Rectangle bg_source_rect = {0};
-    Rectangle bg_dest_rect = {0.0f,0.0f,screenWidth,screenHeight};
-    Vector2 bg_pos = {0.0f,0.0f};
-    bool image_loaded = false;
 
-    Vector2 ballPosition = { -100.0f, -100.0f };
-    Color ballColor = DARKBLUE;
     int isCursorHidden = 0;
 
     // /SetTargetFPS(60);               // Set our game to run at 60 frames-per-second
     //---------------------------------------------------------------------------------------
 
     // Main game loop
+    #if defined(PLATFORM_WEB)
+    emscripten_set_main_loop(UpdateGame, 0, 1);
+    #else
+    //--------------------------------------------------------------------------------------
+
+    // Main game loop
     while (!WindowShouldClose())    // Detect window close button or ESC key
     {
-        // Logic
-        dt = GetFrameTime();
-        fps = GetFPS();
-
-        screenWidth = GetScreenWidth();
-        screenHeight = GetScreenHeight();
-        //toggle fullscreen mode
-       if(IsKeyPressed(KEY_P)){
-         ToggleFullscreen();         
-       }
-       bg_dest_rect.width = screenWidth;
-       bg_dest_rect.height = screenHeight;
-
-        //check if file is dropped and load it to background
-        if (IsFileDropped()) {
-            FilePathList droppedFiles = LoadDroppedFiles();
-            if (droppedFiles.count > 0) {
-                // Load the first dropped file as a texture
-                if (image_loaded) UnloadTexture(bg_texture);  // Unload previous texture
-                Image image = LoadImage(droppedFiles.paths[0]);
-                bg_texture = LoadTextureFromImage(image);
-                bg_source_rect.width = bg_texture.width;
-                bg_source_rect.height = bg_texture.height;
-                UnloadImage(image);
-                image_loaded = true;
-
-            }
-            UnloadDroppedFiles(droppedFiles);
-        }
-        //Render
-        BeginDrawing();
-
-            ClearBackground(DARKGRAY);
-
-             if (image_loaded) {
-                DrawTexturePro(bg_texture, bg_source_rect,bg_dest_rect,bg_pos,0.0f, WHITE);  // Draw image at (200,150)
-            } else {
-                DrawText("Drop an image file here", screenWidth * .4, screenHeight  *.05, 20, BLACK);
-            }
-            UpdateAndDrawApp();
-
-            // DrawRectangle(0,0,250,54,BLACK);
-            // DrawText(TextFormat("Delta Time: %02f", dt), 4, 4, 25, RED);
-            // DrawText(TextFormat("fps: %02f", fps), 4, 25, 25, RED);
-        EndDrawing();
-        //----------------------------------------------------------------------------------
+        UpdateGame();
     }
-
+    #endif
     // De-Initialization
     //--------------------------------------------------------------------------------------
-    UnloadTexture(bg_texture);
+    UnloadTexture(bgImage.bg_texture);
     CloseWindow();        // Close window and OpenGL context
     //--------------------------------------------------------------------------------------
-
+    
     return 0;
+}
+void UpdateGame()
+{
+    // Logic
+    dt = GetFrameTime();
+    fps = GetFPS();
+    
+    screenWidth = GetScreenWidth();
+    screenHeight = GetScreenHeight();
+    //toggle fullscreen mode
+    //if(IsKeyPressed(KEY_P)){
+     //ToggleFullscreen();         
+    //}
+    bgImage.bg_dest_rect.width = screenWidth;
+    bgImage.bg_dest_rect.height = screenHeight;
+    
+    //check if file is dropped and load it to background
+    if (IsFileDropped()) {
+        FilePathList droppedFiles = LoadDroppedFiles();
+        if (droppedFiles.count > 0) {
+            // Load the first dropped file as a texture
+            if (bgImage.image_loaded) UnloadTexture(bgImage.bg_texture);  // Unload previous texture
+            Image image = LoadImage(droppedFiles.paths[0]);
+            bgImage.bg_texture = LoadTextureFromImage(image);
+            bgImage.bg_source_rect.width = bgImage.bg_texture.width;
+            bgImage.bg_source_rect.height = bgImage.bg_texture.height;
+            UnloadImage(image);
+            bgImage.image_loaded = true;
+    
+        }
+        UnloadDroppedFiles(droppedFiles);
+    }
+    //Render
+    BeginDrawing();
+    
+        ClearBackground(DARKGRAY);
+    
+         if (bgImage.image_loaded) {
+            DrawTexturePro(bgImage.bg_texture, bgImage.bg_source_rect,bgImage.bg_dest_rect,bgImage.bg_pos,0.0f, WHITE);  // Draw image at (200,150)
+        } else {
+            DrawText("Drop an image file here", screenWidth * .4, screenHeight  *.05, 20, BLACK);
+        }
+        UpdateAndDrawApp();
+    
+        // DrawRectangle(0,0,250,54,BLACK);
+        // DrawText(TextFormat("Delta Time: %02f", dt), 4, 4, 25, RED);
+        // DrawText(TextFormat("fps: %02f", fps), 4, 25, 25, RED);
+    EndDrawing();
+    //----------------------------------------------------------------------------------
 }
 #pragma endregion
 #pragma region Main Loops
@@ -295,8 +317,8 @@ void UpdateReactionGameState()
     case HIDE:
         break;
     case END:
-    UpdateReactionGameEnd();
-    DrawReactionGameEnd();
+        UpdateReactionGameEnd();
+        DrawReactionGameEnd();
         break;
     
     default:
@@ -324,6 +346,28 @@ void ReactionGameCheckForHide()
         }
     }
 }
+void ResetReactionGame()
+{
+    int x=0;
+    int y=0;
+    for(int i=0;i<NUM_REACTION_BALLS;++i){
+        reactionGame.balls[i] = false;
+        reactionGame.ballPositions[i] = (Vector3){0,0,700};
+    }
+    for (int i = 0; i < NUM_BALLS_ON_SCREEN; ++i)
+    {
+        reactionGame.activeBallIndexs[i] = 0;
+    }
+    
+    reactionGame.score = 1;
+    reactionGame.numClicks = 1;
+    reactionGame.accuracy = 0;
+    reactionGame.timer = 30;
+    PickRandomStartBalls();
+
+
+}
+#pragma region  Raction game Start Menu
 void UpdateReactionStartMenu()
 {
     reactionStart.pos.x = screenWidth * .35;
@@ -332,7 +376,15 @@ void UpdateReactionStartMenu()
     reactionStart.spaccing = screenHeight * 0.1;
     reactionStart.sliderSize = (Vector2){screenWidth * .4,screenHeight *.05};
     reactionStart.ballSizeButton = (Rectangle){0,0,screenWidth * .1,screenHeight*.1};
-    
+    if (IsKeyPressed(KEY_SPACE))
+    {
+        reactionGame.gameState = PLAY;
+        //TODO: move this to reaction game start of play
+        DisableCursor();
+        ResetReactionGame();
+        reactionGame.ballColor = ballColors[reactionStart.ballColorIndex];
+        reactionGame.ballSize *= 4;
+    }
 }
 void DrawReactionStartMenu()
 {
@@ -396,37 +448,10 @@ void DrawReactionStartMenu()
     // space to start text
     y=screenHeight*.9;
     DrawText("Press SPACE to start",x,y,reactionStart.fontScale,mainMenuData.fontColor);
-    if (IsKeyPressed(KEY_SPACE))
-    {
-        reactionGame.gameState = PLAY;
-        //TODO: move this to reaction game start of play
-        DisableCursor();
-        ResetReactionGame();
-        reactionGame.ballColor = ballColors[reactionStart.ballColorIndex];
-        reactionGame.ballSize *= 4;
-    }
-}
-void ResetReactionGame()
-{
-    int x=0;
-    int y=0;
-    for(int i=0;i<NUM_REACTION_BALLS;++i){
-        reactionGame.balls[i] = false;
-        reactionGame.ballPositions[i] = (Vector3){0,0,700};
-    }
-    for (int i = 0; i < NUM_BALLS_ON_SCREEN; ++i)
-    {
-        reactionGame.activeBallIndexs[i] = 0;
-    }
     
-    reactionGame.score = 1;
-    reactionGame.numClicks = 1;
-    reactionGame.accuracy = 0;
-    reactionGame.timer = 30;
-    PickRandomStartBalls();
-
-
 }
+#pragma endregion
+#pragma region Reaction Game Main Update
 void PickRandomStartBalls()
 {
     for (int i = 0; i < NUM_BALLS_ON_SCREEN; i++) {
@@ -454,6 +479,7 @@ void UpdateReactionGame()
     if(reactionGame.timer<=0)
     {
         reactionGame.gameState=END;
+        EnableCursor();
     }
     //CAMERA UPDATE
     // Get mouse movement
@@ -546,6 +572,8 @@ void DrawReactionGame()
     //crosshair
     DrawText(TextFormat("+"),screenWidth/2,screenHeight/2-10,20,BLACK);
 }
+#pragma endregion
+#pragma region Reaction Game End
 void UpdateReactionGameEnd()
 {
     if(IsKeyPressed(KEY_SPACE))
@@ -554,12 +582,25 @@ void UpdateReactionGameEnd()
     }
 }
 void DrawReactionGameEnd()
-{
+{   
+    float x = reactionStart.pos.x;
+    float y = reactionStart.pos.y;
+    int fontSize = reactionStart.fontScale;
+    Color textColor = mainMenuData.fontColor;
     //score
+    DrawText(TextFormat("Score: %d",reactionGame.score),x,y,fontSize,textColor);
     //accuracy
+    y+=reactionStart.spaccing;
+    DrawText(TextFormat("Accuracy: %f",reactionGame.accuracy),x,y,fontSize,textColor);
     //numhits
-}
+    y+=reactionStart.spaccing;
+    //DrawText(TextFormat("Targets Hit: %d",reactionGame.Nu),x,y,fontSize,textColor);
 
+    //press space text
+    y=screenHeight*.9;
+    DrawText("Press SPACE to restart",x,y,reactionStart.fontScale,mainMenuData.fontColor);
+}
+#pragma endregion
 #pragma endregion
 #pragma region Tracking game
 void UpdateTrackGame()

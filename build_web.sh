@@ -1,0 +1,1 @@
+emcc -o IncognitoAim.html main.c -Os -Wall ./lib/libraylib.web.a -I. -Iinclude/ -L. -Llib/ -s USE_GLFW=3 --shell-file minshell.html -DPLATFORM_WEB\
